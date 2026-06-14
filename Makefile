@@ -16,7 +16,7 @@ LDFLAGS += ${EXTRAS}
 CFLAGS  = -std=gnu99 -Wall -ggdb ${EXTRAS}
 
 .PHONY: all
-all:	$(target) README
+all:	$(target) efsextract-man-page.txt
 
 .PHONY: clean
 clean:
@@ -32,7 +32,7 @@ install: ${target} ${target}.1
 uninstall:
 	rm -f /usr/local/bin/${target} /usr/local/share/man/man1/${target}.1
 
-README: ${target}.1
+efsextract-man-page.txt: ${target}.1
 	MANWIDTH=77 man --nh --nj ./${target}.1 | col -b > $@
 
 $(target): $(objects)

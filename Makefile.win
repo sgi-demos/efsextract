@@ -16,7 +16,7 @@ LDFLAGS += -static ${EXTRAS}
 CFLAGS  += -flto -std=gnu2x -Og -ggdb -Ilibcdio-install/include ${EXTRAS}
 
 .PHONY: all
-all:	$(target) README
+all:	$(target) efsextract-man-page.txt
 	strip $(target).exe
 	upx $(target).exe
 
@@ -28,7 +28,7 @@ clean:
 distclean: clean
 	rm -Rf libcdio-build libcdio-install $(LIBCDIO_NAME)
 
-README: ${target}.1
+efsextract-man-page.txt: ${target}.1
 	MANWIDTH=77 man --nh --nj ./${target}.1 | col -b > $@
 
 resource.o: resource.rc

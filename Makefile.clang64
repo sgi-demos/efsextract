@@ -1,0 +1,51 @@
+# Makefile.clang64 - build efsextract in an MSYS2 CLANG64 shell on Windows.
+#
+# Prerequisites (run once in the CLANG64 shell):
+#   pacman -S --needed mingw-w64-clang-x86_64-clang \
+#                      mingw-w64-clang-x86_64-libcdio \
+#                      make
+#
+# Usage:
+#   make -f Makefile.clang64            # dynamic build (needs libcdio DLLs on PATH)
+#   make -f Makefile.clang64 STATIC=1   # standalone .exe, no external DLLs
+#   make -f Makefile.clang64 clean
+#
+# The CLANG64 package installs libcdio into the sysroot (/clang64), so its
+# headers and libraries are already on the default search path -- no -I/-L or
+# pkg-config needed.
+
+target  ?= efsextract
+CC       = clang
+WINDRES ?= windres
+
+# All C sources, plus the Windows version resource.
+objects := $(patsubst %.c,%.o,$(wildcard *.c)) resource.o
+
+# -lws2_32 is required: endian.h maps htobe64/be64toh onto winsock's
+# htonll/ntohll. -liso9660 and -lcdio come from the libcdio package.
+LDLIBS  += -liso9660 -lcdio -lws2_32 -lm
+
+CFLAGS  += -std=gnu99 -O2 -Wall -ggdb
+
+# Optional: produce a single self-contained executable.
+ifdef STATIC
+LDFLAGS += -static
+# If static linking reports undefined references, add the libs it names here,
+# e.g. -lwinmm or -liconv.
+endif
+
+.PHONY: all
+all: $(target).exe
+
+$(target).exe: $(objects)
+	$(CC) $(LDFLAGS) -o $@ $(objects) $(LDLIBS)
+
+resource.o: resource.rc version.h
+	$(WINDRES) $< -o $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: clean
+clean:
+	rm -f $(target).exe $(objects)
