@@ -288,7 +288,7 @@ int tar_emit_from_iso9660(iso9660_t *ctx, const char *filename)
 	if (rc < 0) errx(1, "in snprintf");
 	rc = snprintf(blk.size, sizeof(blk.size), "%011o", st->size);
 	if (rc < 0) errx(1, "in snprintf");
-	rc = snprintf(blk.mtime, sizeof(blk.mtime), "%011lo", mktime(&st->tm));
+	rc = snprintf(blk.mtime, sizeof(blk.mtime), "%011lo", (unsigned long)mktime(&st->tm));
 	if (rc < 0) errx(1, "in snprintf");
 
 	memset(blk.sum, ' ', sizeof(blk.sum));	/* we'll fix the checksum later */

@@ -117,41 +117,63 @@ void emit_regfile(efs_t *efs, const char *path)
 	size_t blockNum;
 
 	rc = efs_stat(efs, path, &sb);
-	if (rc == -1)
-		err(1, "couldn't get stat for '%s'", path);
+	if (rc == -1) {
+		warn("couldn't get stat for '%s'", path);
+		return;
+	}
 
 	src = efs_fopen(efs, path);
-	if (!src)
-		errx(1, "couldn't open efs file '%s'", path);
+	if (!src) {
+		warnx("couldn't open efs file '%s'", path);
+		return;
+	}
 
 	dst = fopen(path, "wb");
-	if (!dst)
-		err(1, "couldn't open destination file '%s'", path);
+	if (!dst) {
+		warn("couldn't open destination file '%s'", path);
+		efs_fclose(src);
+		return;
+	}
 
 	for (blockNum = 0; blockNum < (sb.st_size / 512); blockNum++) {
 		sz = efs_fread(blk, BLKSIZ, 1, src);
-		if (sz != 1)
-			err(1, "couldn't read from source file '%s'", path);
+		if (sz != 1) {
+			warn("couldn't read from source file '%s'", path);
+			goto skip;
+		}
 		sz = fwrite(blk, BLKSIZ, 1, dst);
-		if (sz != 1)
-			err(1, "couldn't write to destination file '%s'", path);
+		if (sz != 1) {
+			warn("couldn't write to destination file '%s'", path);
+			goto skip;
+		}
 	}
 	bytesLeft = sb.st_size & (BLKSIZ - 1);
 	if (bytesLeft) {
 		sz = efs_fread(blk, bytesLeft, 1, src);
-		if (sz != 1)
-			err(1, "couldn't read from source file '%s'", path);
+		if (sz != 1) {
+			warn("couldn't read from source file '%s'", path);
+			goto skip;
+		}
 		sz = fwrite(blk, bytesLeft, 1, dst);
-		if (sz != 1)
-			err(1, "couldn't write to destination file '%s'", path);
+		if (sz != 1) {
+			warn("couldn't write to destination file '%s'", path);
+			goto skip;
+		}
 	}
 
 	efs_fclose(src);
 	fclose(dst);
 
+#ifndef __MINGW32__
 	rc = chmod(path, sb.st_mode & 0777);
 	if (rc == -1)
-		err(1, "couldn't set permissions on '%s'", path);
+		warn("couldn't set permissions on '%s'", path);
+#endif
+	return;
+
+skip:
+	efs_fclose(src);
+	fclose(dst);
 }
 
 void emit_file(efs_t *efs, const char *path)
@@ -271,6 +293,57 @@ int efs_nftw_callback(const char *fpath, const struct efs_stat *sb) {
 	}
 
 	return 0;
+}
+
+static char *outdir_from_filename(const char *filename)
+{
+	const char *base;
+	const char *p;
+	char *dir;
+	char *dot;
+
+	/* strip any leading directory components */
+	base = filename;
+	for (p = filename; *p != '\0'; p++) {
+		if ((*p == '/') || (*p == '\\'))
+			base = p + 1;
+	}
+
+	dir = strdup(base);
+	if (!dir)
+		err(1, "in strdup");
+
+	/*
+	 * Strip the final extension. If there is no extension to strip, the
+	 * directory name would be identical to the image's own name and could
+	 * collide with the image file itself, so use a safe fixed name.
+	 */
+	dot = strrchr(dir, '.');
+	if (dot && (dot != dir)) {
+		*dot = '\0';
+	} else {
+		free(dir);
+		dir = strdup("efsextract.out");
+		if (!dir)
+			err(1, "in strdup");
+	}
+
+	return dir;
+}
+
+static void mkdir_and_enter(const char *dir)
+{
+	int rc;
+#ifdef __MINGW32__
+	rc = mkdir(dir);
+#else
+	rc = mkdir(dir, 0777);
+#endif
+	if ((rc == -1) && (errno != EEXIST))
+		err(1, "couldn't create directory '%s'", dir);
+	rc = chdir(dir);
+	if (rc == -1)
+		err(1, "couldn't enter directory '%s'", dir);
 }
 
 int main(int argc, char *argv[])
@@ -543,6 +616,21 @@ int main(int argc, char *argv[])
 	if (outfile) {
 		rc = tar_create(outfile);
 		if (rc) err(1, "couldn't create archive '%s'", outfile);
+	}
+
+	/*
+	 * Default extraction: extract into 'output/<image>/', where <image>
+	 * is the image file's name minus its extension, so files don't litter
+	 * the current directory. Skipped when listing (-l), scanning (-W),
+	 * or writing a tar archive (-o).
+	 */
+	if (!lflag && !outfile && !Wflag) {
+		char *outdir = outdir_from_filename(filename);
+		if (!qflag)
+			printf("extracting into 'output/%s/'\n", outdir);
+		mkdir_and_enter("output");
+		mkdir_and_enter(outdir);
+		free(outdir);
 	}
 
         if (Wflag) {

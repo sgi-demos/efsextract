@@ -26,7 +26,19 @@ efsextract [-h|-V]
 | `-W`         | Scan the image for `inst` packages and list them.                  |
 | `-X`         | Extract bootfiles from the volume header.                          |
 
-On Windows, fifos, device nodes, sockets, and symlinks can't be recreated, so
+Extraction is done by default to the folder "output\/\<iso filename without extension>"
+
+To check all *.iso in a folder tree:
+```
+find "folder/tree" -name "*.iso" -print -exec ./efsextract.exe -L {} \;
+```
+
+To extract all *.iso in a folder tree:
+```
+find "folder/tree" -name "*.iso" -print -exec ./efsextract.exe {} \;
+```
+
+On Windows these items can't be recreated: fifos, device nodes, sockets, and symlinks, so
 those entries are skipped with a warning during extraction.
 
 ## Building
